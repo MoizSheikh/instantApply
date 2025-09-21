@@ -35,6 +35,16 @@ export interface Template {
   updatedAt: Date
 }
 
+export interface RoleConfig {
+  id: string
+  role: string
+  templateId: string
+  resumeName: string
+  createdAt: Date
+  updatedAt: Date
+  template?: Template
+}
+
 export interface CreateJobData {
   jobTitle: string
   role: string

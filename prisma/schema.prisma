@@ -19,9 +19,24 @@ model Template {
   updatedAt DateTime @updatedAt
   
   // Relations
-  jobs      Job[]
+  jobs        Job[]
+  roleConfigs RoleConfig[]
 
   @@map("templates")
+}
+
+model RoleConfig {
+  id         String   @id @default(cuid())
+  role       String   @unique
+  templateId String
+  resumeName String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Relations
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("role_configs")
 }
 
 model Job {

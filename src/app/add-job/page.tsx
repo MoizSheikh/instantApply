@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
-import { Role, Template } from '@/types'
+import { Role, Template, RoleConfig } from '@/types'
 
 const roleOptions: { value: Role; label: string }[] = [
   { value: 'Frontend Developer', label: 'Frontend Developer' },
@@ -33,6 +33,7 @@ const resumeOptions = [
 export default function AddJobPage() {
   const router = useRouter()
   const [templates, setTemplates] = useState<Template[]>([])
+  const [roleConfigs, setRoleConfigs] = useState<RoleConfig[]>([])
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   
@@ -47,6 +48,7 @@ export default function AddJobPage() {
 
   useEffect(() => {
     fetchTemplates()
+    fetchRoleConfigs()
   }, [])
 
   const fetchTemplates = async () => {
@@ -56,6 +58,16 @@ export default function AddJobPage() {
     } catch (error) {
       console.error('Error fetching templates:', error)
       setTemplates([])
+    }
+  }
+
+  const fetchRoleConfigs = async () => {
+    try {
+      const response = await axios.get('/api/role-configs')
+      setRoleConfigs(response.data || [])
+    } catch (error) {
+      console.error('Error fetching role configs:', error)
+      setRoleConfigs([])
     }
   }
 
@@ -113,6 +125,19 @@ export default function AddJobPage() {
     setFormData(prev => ({ ...prev, [field]: value }))
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }))
+    }
+
+    // Auto-select template and resume when role changes
+    if (field === 'role' && value) {
+      const roleConfig = roleConfigs.find(config => config.role === value)
+      if (roleConfig) {
+        setFormData(prev => ({
+          ...prev,
+          [field]: value,
+          templateId: roleConfig.templateId,
+          resumeName: roleConfig.resumeName
+        }))
+      }
     }
   }
 

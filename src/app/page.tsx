@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/Button";
-import { Job, JobStatus } from "@/types";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Job, JobStatus, Role, Template, RoleConfig } from "@/types";
 import { formatDate, interpolateTemplate } from "@/lib/utils";
-import { Mail, Send, Clock, CheckCircle, XCircle, Filter } from "lucide-react";
+import { Mail, Send, Clock, CheckCircle, XCircle, Filter, Plus, X } from "lucide-react";
 
 const statusConfig = {
   DRAFT: { label: "Draft", icon: Clock, color: "text-gray-500 bg-gray-100" },
@@ -30,6 +32,19 @@ const filterOptions: { value: string; label: string }[] = [
   { value: "FAILED", label: "Failed" },
 ];
 
+const roleOptions: { value: Role; label: string }[] = [
+  { value: 'Frontend Developer', label: 'Frontend Developer' },
+  { value: 'Backend Developer', label: 'Backend Developer' },
+  { value: 'Full Stack Developer', label: 'Full Stack Developer' },
+  { value: 'Software Engineer', label: 'Software Engineer' },
+  { value: 'DevOps Engineer', label: 'DevOps Engineer' },
+  { value: 'Data Scientist', label: 'Data Scientist' },
+  { value: 'Product Manager', label: 'Product Manager' },
+  { value: 'UI/UX Designer', label: 'UI/UX Designer' },
+  { value: 'QA Engineer', label: 'QA Engineer' },
+  { value: 'Other', label: 'Other' }
+]
+
 export default function DashboardPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
@@ -39,9 +54,22 @@ export default function DashboardPage() {
     {}
   );
   const [bulkSending, setBulkSending] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [roleConfigs, setRoleConfigs] = useState<RoleConfig[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const [quickAddData, setQuickAddData] = useState({
+    jobTitle: '',
+    role: '',
+    contactEmail: '',
+    templateId: '',
+    resumeName: ''
+  });
 
   useEffect(() => {
     fetchJobs();
+    fetchRoleConfigs();
+    fetchTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,6 +93,26 @@ export default function DashboardPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRoleConfigs = async () => {
+    try {
+      const response = await axios.get("/api/role-configs");
+      setRoleConfigs(response.data || []);
+    } catch (error) {
+      console.error("Error fetching role configs:", error);
+      setRoleConfigs([]);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const response = await axios.get("/api/templates");
+      setTemplates(response.data || []);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      setTemplates([]);
     }
   };
 
@@ -128,6 +176,56 @@ export default function DashboardPage() {
     return interpolateTemplate(job.template, job);
   };
 
+  const handleQuickAddChange = (field: string, value: string) => {
+    setQuickAddData(prev => ({ ...prev, [field]: value }));
+
+    // Auto-select template and resume when role changes
+    if (field === 'role' && value) {
+      const roleConfig = roleConfigs.find(config => config.role === value);
+      if (roleConfig) {
+        setQuickAddData(prev => ({
+          ...prev,
+          [field]: value,
+          templateId: roleConfig.templateId,
+          resumeName: roleConfig.resumeName
+        }));
+      }
+    }
+  };
+
+  const handleQuickAddSubmit = async () => {
+    if (!quickAddData.jobTitle || !quickAddData.role || !quickAddData.contactEmail) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    setQuickAddLoading(true);
+
+    try {
+      await axios.post('/api/jobs', quickAddData);
+      
+      // Reset form and close modal
+      setQuickAddData({
+        jobTitle: '',
+        role: '',
+        contactEmail: '',
+        templateId: '',
+        resumeName: ''
+      });
+      setShowQuickAdd(false);
+      
+      // Refresh jobs list
+      await fetchJobs();
+      
+      alert('Job added successfully!');
+    } catch (error: any) {
+      console.error('Error creating job:', error);
+      alert(error.response?.data?.error || 'Failed to create job');
+    } finally {
+      setQuickAddLoading(false);
+    }
+  };
+
   const pendingCount = jobs?.filter((job) => job.status === "PENDING").length || 0;
 
   if (loading) {
@@ -151,6 +249,14 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex space-x-3">
+          <Button
+            onClick={() => setShowQuickAdd(true)}
+            variant="secondary"
+            className="flex items-center"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Quick Add
+          </Button>
           {pendingCount > 0 && (
             <Button
               onClick={sendAllPending}
@@ -306,6 +412,72 @@ export default function DashboardPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Quick Add Modal */}
+      {showQuickAdd && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Quick Add Job</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowQuickAdd(false)}
+                className="p-1"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <Input
+                label="Job Title *"
+                placeholder="e.g., Senior Frontend Developer"
+                value={quickAddData.jobTitle}
+                onChange={(e) => handleQuickAddChange('jobTitle', e.target.value)}
+              />
+
+              <Select
+                label="Role *"
+                options={roleOptions}
+                value={quickAddData.role}
+                onChange={(e) => handleQuickAddChange('role', e.target.value)}
+              />
+
+              <Input
+                label="Contact Email *"
+                type="email"
+                placeholder="hiring@company.com"
+                value={quickAddData.contactEmail}
+                onChange={(e) => handleQuickAddChange('contactEmail', e.target.value)}
+              />
+
+              {quickAddData.templateId && (
+                <div className="text-sm text-gray-600">
+                  <p><strong>Auto-selected Template:</strong> {templates.find(t => t.id === quickAddData.templateId)?.name}</p>
+                  <p><strong>Auto-selected Resume:</strong> {quickAddData.resumeName}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowQuickAdd(false)}
+                  disabled={quickAddLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleQuickAddSubmit}
+                  disabled={quickAddLoading}
+                >
+                  {quickAddLoading ? 'Adding...' : 'Add Job'}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
