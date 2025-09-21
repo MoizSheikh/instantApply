@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:./dev.db"
 }
 
 model Template {
@@ -31,7 +31,7 @@ model Job {
   contactEmail String
   notes       String?
   resumeName  String
-  status      String    @default("DRAFT")
+  status      String @default("DRAFT")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
@@ -41,3 +41,4 @@ model Job {
 
   @@map("jobs")
 }
+
