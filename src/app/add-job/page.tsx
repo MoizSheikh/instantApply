@@ -35,6 +35,7 @@ export default function AddJobPage() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [roleConfigs, setRoleConfigs] = useState<RoleConfig[]>([])
   const [loading, setLoading] = useState(false)
+  const [quickApplyLoading, setQuickApplyLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   
   const [formData, setFormData] = useState({
@@ -118,6 +119,37 @@ export default function AddJobPage() {
       setErrors({ submit: errorMessage })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleQuickApply = async () => {
+    if (!validateForm()) {
+      return
+    }
+
+    setQuickApplyLoading(true)
+
+    try {
+      // First create the job
+      const createResponse = await axios.post('/api/jobs', formData)
+      const jobId = createResponse.data.id
+
+      // Then immediately send it
+      const sendResponse = await axios.post('/api/send', { jobId })
+
+      if (sendResponse.data.success) {
+        alert('Job created and application sent successfully!')
+        router.push('/')
+      } else {
+        alert(`Job created but failed to send: ${sendResponse.data.message}`)
+        router.push('/')
+      }
+    } catch (error: any) {
+      console.error('Error in quick apply:', error)
+      const errorMessage = error.response?.data?.error || 'Failed to create and send job'
+      setErrors({ submit: errorMessage })
+    } finally {
+      setQuickApplyLoading(false)
     }
   }
 
@@ -218,14 +250,23 @@ export default function AddJobPage() {
                 type="button"
                 variant="outline"
                 onClick={() => router.push('/')}
+                disabled={loading || quickApplyLoading}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                disabled={loading}
+                variant="secondary"
+                disabled={loading || quickApplyLoading}
               >
                 {loading ? 'Creating...' : 'Create Job'}
+              </Button>
+              <Button
+                type="button"
+                onClick={handleQuickApply}
+                disabled={loading || quickApplyLoading}
+              >
+                {quickApplyLoading ? 'Applying...' : 'Quick Apply'}
               </Button>
             </div>
           </form>
