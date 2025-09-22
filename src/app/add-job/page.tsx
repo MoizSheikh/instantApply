@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
+import { useToast } from '@/contexts/ToastContext'
 import { Role, Template, RoleConfig } from '@/types'
 
 const roleOptions: { value: Role; label: string }[] = [
@@ -32,6 +33,7 @@ const resumeOptions = [
 
 export default function AddJobPage() {
   const router = useRouter()
+  const toast = useToast()
   const [templates, setTemplates] = useState<Template[]>([])
   const [roleConfigs, setRoleConfigs] = useState<RoleConfig[]>([])
   const [loading, setLoading] = useState(false)
@@ -138,10 +140,10 @@ export default function AddJobPage() {
       const sendResponse = await axios.post('/api/send', { jobId })
 
       if (sendResponse.data.success) {
-        alert('Job created and application sent successfully!')
+        toast.success('Job created and application sent successfully!')
         router.push('/')
       } else {
-        alert(`Job created but failed to send: ${sendResponse.data.message}`)
+        toast.warning('Job created but failed to send', sendResponse.data.message)
         router.push('/')
       }
     } catch (error: any) {

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Plus, Home } from 'lucide-react'
+import { Plus, Home, Settings } from 'lucide-react'
 
 export default function Navigation() {
   const pathname = usePathname()
@@ -18,6 +18,11 @@ export default function Navigation() {
       href: '/add-job',
       label: 'Add Job',
       icon: Plus
+    },
+    {
+      href: '/settings',
+      label: 'Settings',
+      icon: Settings
     }
   ]
 
@@ -38,7 +43,7 @@ export default function Navigation() {
                     href={link.href}
                     className={cn(
                       'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium',
-                      pathname === link.href
+                      (pathname === link.href || (link.href === '/settings' && pathname.startsWith('/settings')))
                         ? 'border-blue-500 text-gray-900'
                         : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                     )}
@@ -64,7 +69,7 @@ export default function Navigation() {
                 href={link.href}
                 className={cn(
                   'flex items-center pl-3 pr-4 py-2 border-l-4 text-base font-medium',
-                  pathname === link.href
+                  (pathname === link.href || (link.href === '/settings' && pathname.startsWith('/settings')))
                     ? 'bg-blue-50 border-blue-500 text-blue-700'
                     : 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700'
                 )}

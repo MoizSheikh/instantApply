@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Job, JobStatus, Role, Template, RoleConfig } from "@/types";
 import { formatDate, interpolateTemplate } from "@/lib/utils";
+import { useToast } from "@/contexts/ToastContext";
 import { Mail, Send, Clock, CheckCircle, XCircle, Plus, X, Sparkles } from "lucide-react";
 
 const statusConfig = {
@@ -39,6 +40,7 @@ const roleOptions: { value: Role; label: string }[] = [
 ]
 
 export default function DashboardPage() {
+  const toast = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,7 +128,7 @@ export default function DashboardPage() {
             job.id === jobId ? { ...job, status: "SENT" as JobStatus } : job
           )
         );
-        alert("Email sent successfully!");
+        toast.success("Email sent successfully!");
       } else {
         // Update to failed status
         setJobs((prev) =>
@@ -134,7 +136,7 @@ export default function DashboardPage() {
             job.id === jobId ? { ...job, status: "FAILED" as JobStatus } : job
           )
         );
-        alert(response.data.message || "Failed to send email");
+        toast.error("Failed to send email", response.data.message);
       }
     } catch (error) {
       console.error("Error sending email:", error);
@@ -144,7 +146,7 @@ export default function DashboardPage() {
           job.id === jobId ? { ...job, status: "FAILED" as JobStatus } : job
         )
       );
-      alert("Network error. Please try again.");
+      toast.error("Network error", "Please try again.");
     } finally {
       setSendingStates((prev) => ({ ...prev, [jobId]: false }));
     }
@@ -160,10 +162,10 @@ export default function DashboardPage() {
       // Refresh jobs to get updated statuses
       await fetchJobs();
 
-      alert(response.data.message || "Bulk send completed");
+      toast.success("Bulk send completed", response.data.message);
     } catch (error) {
       console.error("Error in bulk send:", error);
-      alert("Network error. Please try again.");
+      toast.error("Network error", "Please try again.");
     } finally {
       setBulkSending(false);
     }
@@ -193,7 +195,7 @@ export default function DashboardPage() {
 
   const handleQuickAddSubmit = async () => {
     if (!quickAddData.jobTitle || !quickAddData.role || !quickAddData.contactEmail) {
-      alert('Please fill in all required fields');
+      toast.warning('Missing fields', 'Please fill in all required fields');
       return;
     }
 
@@ -215,10 +217,10 @@ export default function DashboardPage() {
       // Refresh jobs list
       await fetchJobs();
       
-      alert('Job added successfully!');
+      toast.success('Job added successfully!');
     } catch (error: any) {
       console.error('Error creating job:', error);
-      alert(error.response?.data?.error || 'Failed to create job');
+      toast.error('Failed to create job', error.response?.data?.error);
     } finally {
       setQuickAddLoading(false);
     }
@@ -226,15 +228,15 @@ export default function DashboardPage() {
 
   const handleJobExtraction = async () => {
     if (!jobDescriptionText.trim()) {
-      alert('Please paste a job description');
+      toast.warning('Missing job description', 'Please paste a job description');
       return;
     }
 
     setExtractionLoading(true);
 
     try {
-      const response = await axios.post('https://abdulmoizsheikh-instantApply.hf.space/extract', {
-        text: jobDescriptionText
+      const response = await axios.post('https://abdulmoizsheikh-instantapply.hf.space/api/predict', {
+        data: [jobDescriptionText]
       });
 
       const extractedData = response.data;
@@ -269,7 +271,7 @@ export default function DashboardPage() {
       
     } catch (error: any) {
       console.error('Error extracting job data:', error);
-      alert('Failed to extract job information. Please try again or fill manually.');
+      toast.error('Extraction failed', 'Failed to extract job information. Please try again or fill manually.');
     } finally {
       setExtractionLoading(false);
     }
