@@ -5,9 +5,10 @@ import axios from "axios";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
 import { Job, JobStatus, Role, Template, RoleConfig } from "@/types";
 import { formatDate, interpolateTemplate } from "@/lib/utils";
-import { Mail, Send, Clock, CheckCircle, XCircle, Filter, Plus, X } from "lucide-react";
+import { Mail, Send, Clock, CheckCircle, XCircle, Plus, X, Sparkles } from "lucide-react";
 
 const statusConfig = {
   DRAFT: { label: "Draft", icon: Clock, color: "text-gray-500 bg-gray-100" },
@@ -23,14 +24,6 @@ const statusConfig = {
   },
   FAILED: { label: "Failed", icon: XCircle, color: "text-red-600 bg-red-100" },
 };
-
-const filterOptions: { value: string; label: string }[] = [
-  { value: "all", label: "All Jobs" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "PENDING", label: "Pending" },
-  { value: "SENT", label: "Sent" },
-  { value: "FAILED", label: "Failed" },
-];
 
 const roleOptions: { value: Role; label: string }[] = [
   { value: 'Frontend Developer', label: 'Frontend Developer' },
@@ -55,9 +48,13 @@ export default function DashboardPage() {
   );
   const [bulkSending, setBulkSending] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showSendAllModal, setShowSendAllModal] = useState(false);
+  const [showJobExtractor, setShowJobExtractor] = useState(false);
   const [roleConfigs, setRoleConfigs] = useState<RoleConfig[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const [extractionLoading, setExtractionLoading] = useState(false);
+  const [jobDescriptionText, setJobDescriptionText] = useState('');
   const [quickAddData, setQuickAddData] = useState({
     jobTitle: '',
     role: '',
@@ -155,6 +152,7 @@ export default function DashboardPage() {
 
   const sendAllPending = async () => {
     setBulkSending(true);
+    setShowSendAllModal(false);
 
     try {
       const response = await axios.post("/api/send/bulk", { status: "PENDING" });
@@ -226,7 +224,75 @@ export default function DashboardPage() {
     }
   };
 
+  const handleJobExtraction = async () => {
+    if (!jobDescriptionText.trim()) {
+      alert('Please paste a job description');
+      return;
+    }
+
+    setExtractionLoading(true);
+
+    try {
+      const response = await axios.post('https://abdulmoizsheikh-instantApply.hf.space/extract', {
+        text: jobDescriptionText
+      });
+
+      const extractedData = response.data;
+      
+      // Map extracted data to our form structure
+      const mappedData = {
+        jobTitle: extractedData.job_title || '',
+        role: extractedData.role || '',
+        contactEmail: extractedData.contact_email || '',
+        templateId: '',
+        resumeName: ''
+      };
+
+      // Auto-select template and resume based on role
+      if (mappedData.role) {
+        const roleConfig = roleConfigs.find(config => config.role === mappedData.role);
+        if (roleConfig) {
+          mappedData.templateId = roleConfig.templateId;
+          mappedData.resumeName = roleConfig.resumeName;
+        }
+      }
+
+      // Update the quick add form data
+      setQuickAddData(mappedData);
+      
+      // Close extractor and open quick add modal
+      setShowJobExtractor(false);
+      setShowQuickAdd(true);
+      
+      // Clear the textarea
+      setJobDescriptionText('');
+      
+    } catch (error: any) {
+      console.error('Error extracting job data:', error);
+      alert('Failed to extract job information. Please try again or fill manually.');
+    } finally {
+      setExtractionLoading(false);
+    }
+  };
+
   const pendingCount = jobs?.filter((job) => job.status === "PENDING").length || 0;
+
+  const getStatusCounts = () => {
+    const counts = {
+      all: jobs?.length || 0,
+      DRAFT: jobs?.filter((job) => job.status === "DRAFT").length || 0,
+      PENDING: pendingCount,
+      SENT: jobs?.filter((job) => job.status === "SENT").length || 0,
+      FAILED: jobs?.filter((job) => job.status === "FAILED").length || 0,
+    };
+    return counts;
+  };
+
+  const statusCounts = getStatusCounts();
+
+  const getPendingJobs = () => {
+    return jobs?.filter((job) => job.status === "PENDING") || [];
+  };
 
   if (loading) {
     return (
@@ -250,6 +316,14 @@ export default function DashboardPage() {
         </div>
         <div className="flex space-x-3">
           <Button
+            onClick={() => setShowJobExtractor(true)}
+            variant="secondary"
+            className="flex items-center"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Smart Extract
+          </Button>
+          <Button
             onClick={() => setShowQuickAdd(true)}
             variant="secondary"
             className="flex items-center"
@@ -259,7 +333,7 @@ export default function DashboardPage() {
           </Button>
           {pendingCount > 0 && (
             <Button
-              onClick={sendAllPending}
+              onClick={() => setShowSendAllModal(true)}
               disabled={bulkSending}
               className="flex items-center"
             >
@@ -272,23 +346,36 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center space-x-4">
-        <Filter className="w-4 h-4 text-gray-500" />
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        >
-          {filterOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
+      {/* Status Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          {[
+            { key: 'all', label: 'All Jobs', count: statusCounts.all },
+            { key: 'DRAFT', label: 'Draft', count: statusCounts.DRAFT },
+            { key: 'PENDING', label: 'Pending', count: statusCounts.PENDING },
+            { key: 'SENT', label: 'Sent', count: statusCounts.SENT },
+            { key: 'FAILED', label: 'Failed', count: statusCounts.FAILED },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setFilter(tab.key)}
+              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${
+                filter === tab.key
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {tab.label}
+              <span className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
+                filter === tab.key
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'bg-gray-100 text-gray-600'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
           ))}
-        </select>
-        <span className="text-sm text-gray-500">
-          {filteredJobs?.length || 0} result{(filteredJobs?.length || 0) !== 1 ? "s" : ""}
-        </span>
+        </nav>
       </div>
 
       {/* Jobs List */}
@@ -412,6 +499,170 @@ export default function DashboardPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Job Extractor Modal */}
+      {showJobExtractor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900 flex items-center">
+                <Sparkles className="w-5 h-5 mr-2 text-blue-500" />
+                Smart Job Extraction
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowJobExtractor(false)}
+                className="p-1"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-800">
+                <strong>How it works:</strong> Paste a job description below and we&apos;ll automatically extract the job title, role, and contact email for you. The form will be pre-filled and ready to submit!
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <Textarea
+                label="Job Description *"
+                placeholder="Paste the complete job description here...
+
+Example:
+We are looking for a Senior Frontend Developer to join our team at TechCorp.
+
+Requirements:
+- 5+ years React experience
+- Strong TypeScript skills
+...
+
+Contact: jobs@techcorp.com"
+                rows={12}
+                value={jobDescriptionText}
+                onChange={(e) => setJobDescriptionText(e.target.value)}
+              />
+
+              <div className="flex justify-end space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowJobExtractor(false)}
+                  disabled={extractionLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleJobExtraction}
+                  disabled={extractionLoading || !jobDescriptionText.trim()}
+                  className="flex items-center"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  {extractionLoading ? 'Extracting...' : 'Extract & Fill Form'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send All Modal */}
+      {showSendAllModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                Send All Pending Applications ({pendingCount})
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSendAllModal(false)}
+                className="p-1"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-800">
+                <strong>Review before sending:</strong> The following {pendingCount} job application{pendingCount !== 1 ? 's' : ''} will be sent automatically. Please review the details below.
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto mb-4">
+              <div className="space-y-4">
+                {getPendingJobs().map((job, index) => {
+                  const emailPreview = getEmailPreview(job);
+                  return (
+                    <div key={job.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h4 className="font-medium text-gray-900">
+                            {index + 1}. {job.jobTitle}
+                          </h4>
+                          <p className="text-sm text-gray-600">{job.role}</p>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {formatDate(new Date(job.createdAt))}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p><strong>To:</strong> {job.contactEmail}</p>
+                          <p><strong>Resume:</strong> {job.resumeName}</p>
+                          <p><strong>Template:</strong> {job.template?.name}</p>
+                        </div>
+                        <div>
+                          {job.notes && (
+                            <p><strong>Notes:</strong> {job.notes}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {emailPreview.subject && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="bg-gray-50 rounded-md p-3">
+                            <div className="mb-2">
+                              <span className="text-xs font-medium text-gray-500">Subject:</span>
+                              <p className="text-sm text-gray-900">{emailPreview.subject}</p>
+                            </div>
+                            <div>
+                              <span className="text-xs font-medium text-gray-500">Preview:</span>
+                              <div className="text-sm text-gray-700 max-h-20 overflow-y-auto">
+                                {emailPreview.body.substring(0, 200)}...
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+              <Button
+                variant="outline"
+                onClick={() => setShowSendAllModal(false)}
+                disabled={bulkSending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={sendAllPending}
+                disabled={bulkSending}
+                className="flex items-center"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                {bulkSending ? 'Sending All...' : `Send All ${pendingCount} Applications`}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
