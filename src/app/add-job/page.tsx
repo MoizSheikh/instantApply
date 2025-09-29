@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
-import { useToast } from '@/contexts/ToastContext'
+import { useToast } from '@/hooks/use-toast'
 import { Role, Template, RoleConfig } from '@/types'
 
 const roleOptions: { value: Role; label: string }[] = [
@@ -33,7 +33,7 @@ const resumeOptions = [
 
 export default function AddJobPage() {
   const router = useRouter()
-  const toast = useToast()
+  const { toast } = useToast()
   const [templates, setTemplates] = useState<Template[]>([])
   const [roleConfigs, setRoleConfigs] = useState<RoleConfig[]>([])
   const [loading, setLoading] = useState(false)
@@ -140,10 +140,16 @@ export default function AddJobPage() {
       const sendResponse = await axios.post('/api/send', { jobId })
 
       if (sendResponse.data.success) {
-        toast.success('Job created and application sent successfully!')
+        toast({
+          title: "Job created and application sent successfully!",
+          description: "Your application has been submitted.",
+        })
         router.push('/')
       } else {
-        toast.warning('Job created but failed to send', sendResponse.data.message)
+        toast({
+          title: "Job created but failed to send",
+          description: sendResponse.data.message || "You can try sending it later from the dashboard.",
+        })
         router.push('/')
       }
     } catch (error: any) {

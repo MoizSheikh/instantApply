@@ -10,8 +10,7 @@ import { Job, JobStatus, Role, Template, RoleConfig } from "@/types";
 import { formatDate, interpolateTemplate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  Mail, Send, Clock, CheckCircle, XCircle, Plus, X, Sparkles,
-  TrendingUp, Users, Calendar, BarChart3, Building2, Activity
+  Mail, Send, Clock, CheckCircle, XCircle, Plus, X, Sparkles, Trash2, Edit
 } from "lucide-react";
 
 const statusConfig = {
@@ -42,32 +41,11 @@ const roleOptions: { value: Role; label: string }[] = [
   { value: 'Other', label: 'Other' }
 ]
 
-interface DashboardStats {
-  totalJobs: number;
-  recentApplications: number;
-  statusStats: {
-    draft: number;
-    pending: number;
-    sent: number;
-    failed: number;
-  };
-  applicationsByCompany: Array<{
-    company: string;
-    count: number;
-  }>;
-  dailyApplications: Array<{
-    date: string;
-    count: number;
-  }>;
-}
-
-export default function DashboardPage() {
+export default function JobsPage() {
   const { toast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [statsLoading, setStatsLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [sendingStates, setSendingStates] = useState<Record<string, boolean>>(
     {}
@@ -81,6 +59,9 @@ export default function DashboardPage() {
   const [quickAddLoading, setQuickAddLoading] = useState(false);
   const [extractionLoading, setExtractionLoading] = useState(false);
   const [jobDescriptionText, setJobDescriptionText] = useState('');
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [quickAddData, setQuickAddData] = useState({
     jobTitle: '',
     role: '',
@@ -93,7 +74,6 @@ export default function DashboardPage() {
     fetchJobs();
     fetchRoleConfigs();
     fetchTemplates();
-    fetchDashboardStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -111,7 +91,6 @@ export default function DashboardPage() {
       setJobs(response.data || []);
     } catch (error) {
       console.error("Error fetching jobs:", error);
-      // Don't set jobs on error - keep existing state or empty array
       if (jobs.length === 0) {
         setJobs([]);
       }
@@ -140,18 +119,6 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchDashboardStats = async () => {
-    try {
-      const response = await axios.get("/api/dashboard");
-      setDashboardStats(response.data);
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
-      setDashboardStats(null);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
   const sendJob = async (jobId: string) => {
     setSendingStates((prev) => ({ ...prev, [jobId]: true }));
 
@@ -159,7 +126,6 @@ export default function DashboardPage() {
       const response = await axios.post("/api/send", { jobId });
 
       if (response.data.success) {
-        // Update the job in the local state
         setJobs((prev) =>
           prev.map((job) =>
             job.id === jobId ? { ...job, status: "SENT" as JobStatus } : job
@@ -169,10 +135,7 @@ export default function DashboardPage() {
           title: "Email sent successfully!",
           description: "Your job application has been sent.",
         });
-        // Refresh dashboard stats
-        fetchDashboardStats();
       } else {
-        // Update to failed status
         setJobs((prev) =>
           prev.map((job) =>
             job.id === jobId ? { ...job, status: "FAILED" as JobStatus } : job
@@ -186,7 +149,6 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error("Error sending email:", error);
-      // Update to failed status on error
       setJobs((prev) =>
         prev.map((job) =>
           job.id === jobId ? { ...job, status: "FAILED" as JobStatus } : job
@@ -208,11 +170,7 @@ export default function DashboardPage() {
 
     try {
       const response = await axios.post("/api/send/bulk", { status: "PENDING" });
-
-      // Refresh jobs to get updated statuses
       await fetchJobs();
-      // Refresh dashboard stats
-      fetchDashboardStats();
 
       toast({
         title: "Bulk send completed",
@@ -238,7 +196,6 @@ export default function DashboardPage() {
   const handleQuickAddChange = (field: string, value: string) => {
     setQuickAddData(prev => ({ ...prev, [field]: value }));
 
-    // Auto-select template and resume when role changes
     if (field === 'role' && value) {
       const roleConfig = roleConfigs.find(config => config.role === value);
       if (roleConfig) {
@@ -267,7 +224,6 @@ export default function DashboardPage() {
     try {
       await axios.post('/api/jobs', quickAddData);
       
-      // Reset form and close modal
       setQuickAddData({
         jobTitle: '',
         role: '',
@@ -277,13 +233,11 @@ export default function DashboardPage() {
       });
       setShowQuickAdd(false);
       
-      // Refresh jobs list and stats
       await fetchJobs();
-      fetchDashboardStats();
       
       toast({
         title: "Job added successfully!",
-        description: "Your job has been added to the dashboard.",
+        description: "Your job has been added to the list.",
       });
     } catch (error: any) {
       console.error('Error creating job:', error);
@@ -294,6 +248,40 @@ export default function DashboardPage() {
       });
     } finally {
       setQuickAddLoading(false);
+    }
+  };
+
+  const handleDeleteJob = (job: Job) => {
+    setJobToDelete(job);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteJob = async () => {
+    if (!jobToDelete) return;
+
+    setDeletingJobId(jobToDelete.id);
+
+    try {
+      await axios.delete(`/api/jobs/${jobToDelete.id}`);
+      
+      // Remove job from local state
+      setJobs(prev => prev.filter(job => job.id !== jobToDelete.id));
+      
+      toast({
+        title: "Job deleted successfully!",
+        description: "The job application has been removed.",
+      });
+    } catch (error: any) {
+      console.error('Error deleting job:', error);
+      toast({
+        variant: "destructive",
+        title: "Failed to delete job",
+        description: error.response?.data?.error || "Please try again.",
+      });
+    } finally {
+      setDeletingJobId(null);
+      setShowDeleteConfirm(false);
+      setJobToDelete(null);
     }
   };
 
@@ -316,7 +304,6 @@ export default function DashboardPage() {
 
       const extractedData = response.data;
       
-      // Map extracted data to our form structure
       const mappedData = {
         jobTitle: extractedData.job_title || '',
         role: extractedData.role || '',
@@ -325,7 +312,6 @@ export default function DashboardPage() {
         resumeName: ''
       };
 
-      // Auto-select template and resume based on role
       if (mappedData.role) {
         const roleConfig = roleConfigs.find(config => config.role === mappedData.role);
         if (roleConfig) {
@@ -334,14 +320,9 @@ export default function DashboardPage() {
         }
       }
 
-      // Update the quick add form data
       setQuickAddData(mappedData);
-      
-      // Close extractor and open quick add modal
       setShowJobExtractor(false);
       setShowQuickAdd(true);
-      
-      // Clear the textarea
       setJobDescriptionText('');
       
     } catch (error: any) {
@@ -375,7 +356,7 @@ export default function DashboardPage() {
     return jobs?.filter((job) => job.status === "PENDING") || [];
   };
 
-  if (loading || statsLoading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -389,10 +370,10 @@ export default function DashboardPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Job Applications Dashboard
+            Job Applications
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {dashboardStats?.totalJobs || 0} total applications
+            {jobs?.length || 0} total applications
           </p>
         </div>
         <div className="flex space-x-3">
@@ -426,135 +407,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {/* Statistics Cards */}
-      {dashboardStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <BarChart3 className="h-8 w-8 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Total Applications</p>
-                <p className="text-2xl font-semibold text-gray-900">{dashboardStats.totalJobs}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <TrendingUp className="h-8 w-8 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Sent Applications</p>
-                <p className="text-2xl font-semibold text-gray-900">{dashboardStats.statusStats.sent}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Calendar className="h-8 w-8 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Last 30 Days</p>
-                <p className="text-2xl font-semibold text-gray-900">{dashboardStats.recentApplications}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Activity className="h-8 w-8 text-orange-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Pending</p>
-                <p className="text-2xl font-semibold text-gray-900">{dashboardStats.statusStats.pending}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Charts Section */}
-      {dashboardStats && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Applications by Company */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center mb-4">
-              <Building2 className="h-5 w-5 text-gray-600 mr-2" />
-              <h3 className="text-lg font-medium text-gray-900">Top Companies</h3>
-            </div>
-            {dashboardStats.applicationsByCompany.length > 0 ? (
-              <div className="space-y-3">
-                {dashboardStats.applicationsByCompany.slice(0, 8).map((company, index) => (
-                  <div key={company.company} className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                        <span className="text-sm font-medium text-blue-600">{index + 1}</span>
-                      </div>
-                      <span className="text-sm text-gray-900">{company.company}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-20 bg-gray-200 rounded-full h-2 mr-3">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full" 
-                          style={{ 
-                            width: `${Math.min((company.count / Math.max(...dashboardStats.applicationsByCompany.map(c => c.count))) * 100, 100)}%` 
-                          }}
-                        ></div>
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">{company.count}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No company data available</p>
-            )}
-          </div>
-
-          {/* Daily Applications Chart */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center mb-4">
-              <Activity className="h-5 w-5 text-gray-600 mr-2" />
-              <h3 className="text-lg font-medium text-gray-900">Last 7 Days</h3>
-            </div>
-            {dashboardStats.dailyApplications.length > 0 ? (
-              <div className="space-y-3">
-                {dashboardStats.dailyApplications.map((day) => (
-                  <div key={day.date} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">
-                      {new Date(day.date).toLocaleDateString('en-US', { 
-                        weekday: 'short', 
-                        month: 'short', 
-                        day: 'numeric' 
-                      })}
-                    </span>
-                    <div className="flex items-center">
-                      <div className="w-20 bg-gray-200 rounded-full h-2 mr-3">
-                        <div 
-                          className="bg-green-600 h-2 rounded-full" 
-                          style={{ 
-                            width: `${day.count > 0 ? Math.max((day.count / Math.max(...dashboardStats.dailyApplications.map(d => d.count))) * 100, 10) : 0}%` 
-                          }}
-                        ></div>
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">{day.count}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No recent activity</p>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Status Tabs */}
       <div className="border-b border-gray-200">
@@ -640,6 +492,11 @@ export default function DashboardPage() {
                           <p>
                             <strong>Contact:</strong> {job.contactEmail}
                           </p>
+                          {job.companyName && (
+                            <p>
+                              <strong>Company:</strong> {job.companyName}
+                            </p>
+                          )}
                           <p>
                             <strong>Resume:</strong> {job.resumeName}
                           </p>
@@ -652,6 +509,12 @@ export default function DashboardPage() {
                             <strong>Created:</strong>{" "}
                             {formatDate(new Date(job.createdAt))}
                           </p>
+                          {job.sentAt && (
+                            <p>
+                              <strong>Sent:</strong>{" "}
+                              {formatDate(new Date(job.sentAt))}
+                            </p>
+                          )}
                           {job.notes && (
                             <p>
                               <strong>Notes:</strong> {job.notes}
@@ -661,7 +524,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="ml-4 flex-shrink-0">
+                    <div className="ml-4 flex-shrink-0 flex items-center space-x-2">
                       {(job.status === "DRAFT" || job.status === "FAILED") && (
                         <Button
                           size="sm"
@@ -673,6 +536,15 @@ export default function DashboardPage() {
                           {isSending ? "Sending..." : "Send"}
                         </Button>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeleteJob(job)}
+                        disabled={deletingJobId === job.id}
+                        className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
                   </div>
 
@@ -937,6 +809,58 @@ Contact: jobs@techcorp.com"
                   {quickAddLoading ? 'Adding...' : 'Add Job'}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && jobToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">Delete Job Application</h3>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-500 mb-3">
+                Are you sure you want to delete this job application? This action cannot be undone.
+              </p>
+              
+              <div className="bg-gray-50 rounded-md p-3">
+                <p className="font-medium text-gray-900">{jobToDelete.jobTitle}</p>
+                <p className="text-sm text-gray-600">{jobToDelete.role}</p>
+                <p className="text-sm text-gray-600">{jobToDelete.contactEmail}</p>
+                {jobToDelete.companyName && (
+                  <p className="text-sm text-gray-600">{jobToDelete.companyName}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setJobToDelete(null);
+                }}
+                disabled={deletingJobId === jobToDelete.id}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDeleteJob}
+                disabled={deletingJobId === jobToDelete.id}
+                className="bg-red-600 hover:bg-red-700 text-white flex items-center"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {deletingJobId === jobToDelete.id ? 'Deleting...' : 'Delete'}
+              </Button>
             </div>
           </div>
         </div>

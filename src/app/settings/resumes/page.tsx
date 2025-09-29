@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/Input'
-import { useToast } from '@/contexts/ToastContext'
+import { useToast } from '@/hooks/use-toast'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Upload, FileText, Trash2, X, Plus, Download, Eye } from 'lucide-react'
 
 interface Resume {
@@ -14,10 +15,12 @@ interface Resume {
 }
 
 export default function ResumesPage() {
-  const toast = useToast()
+  const { toast } = useToast()
   const [resumes, setResumes] = useState<Resume[]>([])
   const [loading, setLoading] = useState(true)
   const [showUploadForm, setShowUploadForm] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [resumeToDelete, setResumeToDelete] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -42,11 +45,19 @@ export default function ResumesPage() {
     const file = e.target.files?.[0]
     if (file) {
       if (file.type !== 'application/pdf') {
-        toast.warning('Invalid file type', 'Please select a PDF file')
+        toast({
+          variant: "destructive",
+          title: "Invalid file type",
+          description: "Please select a PDF file",
+        })
         return
       }
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        toast.warning('File too large', 'File size must be less than 10MB')
+        toast({
+          variant: "destructive",
+          title: "File too large",
+          description: "File size must be less than 10MB",
+        })
         return
       }
       setSelectedFile(file)
@@ -60,7 +71,11 @@ export default function ResumesPage() {
     e.preventDefault()
     
     if (!selectedFile || !displayName) {
-      toast.warning('Missing information', 'Please select a file and provide a display name')
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Please select a file and provide a display name",
+      })
       return
     }
 
@@ -79,39 +94,66 @@ export default function ResumesPage() {
       if (response.ok) {
         await fetchResumes()
         resetForm()
-        toast.success('Resume uploaded successfully!')
+        toast({
+          title: "Resume uploaded successfully!",
+          description: "Your resume is now available for job applications.",
+        })
       } else {
         const error = await response.json()
-        toast.error('Upload failed', error.error || 'Failed to upload resume')
+        toast({
+          variant: "destructive",
+          title: "Upload failed",
+          description: error.error || "Failed to upload resume",
+        })
       }
     } catch (error) {
       console.error('Error uploading resume:', error)
-      toast.error('Upload failed', 'Failed to upload resume')
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: "Failed to upload resume",
+      })
     } finally {
       setUploading(false)
     }
   }
 
-  const handleDelete = async (filename: string) => {
-    if (!window.confirm('Are you sure you want to delete this resume?')) {
-      return
-    }
+  const handleDelete = (filename: string) => {
+    setResumeToDelete(filename)
+    setShowDeleteDialog(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!resumeToDelete) return
 
     try {
-      const response = await fetch(`/api/resumes/${encodeURIComponent(filename)}`, {
+      const response = await fetch(`/api/resumes/${encodeURIComponent(resumeToDelete)}`, {
         method: 'DELETE'
       })
 
       if (response.ok) {
         await fetchResumes()
-        toast.success('Resume deleted successfully!')
+        toast({
+          title: "Resume deleted successfully!",
+          description: "The resume has been removed from your account.",
+        })
       } else {
         const error = await response.json()
-        toast.error('Delete failed', error.error || 'Failed to delete resume')
+        toast({
+          variant: "destructive",
+          title: "Delete failed",
+          description: error.error || "Failed to delete resume",
+        })
       }
     } catch (error) {
       console.error('Error deleting resume:', error)
-      toast.error('Delete failed', 'Failed to delete resume')
+      toast({
+        variant: "destructive",
+        title: "Delete failed",
+        description: "Failed to delete resume",
+      })
+    } finally {
+      setResumeToDelete(null)
     }
   }
 
@@ -295,6 +337,18 @@ export default function ResumesPage() {
           <li>• Only PDF format is supported for compatibility</li>
         </ul>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Delete Resume"
+        description={`Are you sure you want to delete this resume? This action cannot be undone and the file will be permanently removed.`}
+        confirmText="Delete Resume"
+        cancelText="Cancel"
+        onConfirm={confirmDelete}
+        variant="destructive"
+      />
     </div>
   )
 }

@@ -36,6 +36,8 @@ function extractCompanyFromEmail(email: string): string {
   return companyName.charAt(0).toUpperCase() + companyName.slice(1)
 }
 
+export { extractCompanyFromEmail }
+
 export function cn(...classes: (string | undefined)[]): string {
   return classes.filter(Boolean).join(' ')
 }

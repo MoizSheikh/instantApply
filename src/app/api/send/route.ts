@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { GmailService } from '@/lib/gmail'
-import { interpolateTemplate } from '@/lib/utils'
+import { interpolateTemplate, extractCompanyFromEmail } from '@/lib/utils'
 import * as path from 'path'
 
 export async function POST(request: NextRequest) {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Interpolate template
-    const { subject, body } = interpolateTemplate(job.template, job)
+    const { subject, body } = interpolateTemplate(job.template, job as any)
 
     // Prepare email data
     const resumePath = path.join(process.cwd(), 'public', 'resumes', job.resumeName)
@@ -54,7 +54,9 @@ export async function POST(request: NextRequest) {
     const updatedJob = await prisma.job.update({
       where: { id: jobId },
       data: { 
-        status: success ? 'SENT' : 'FAILED' 
+        status: success ? 'SENT' : 'FAILED',
+        companyName: extractCompanyFromEmail(job.contactEmail),
+        sentAt: success ? new Date() : null
       },
       include: {
         template: true

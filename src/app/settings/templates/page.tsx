@@ -2,19 +2,22 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
-import { useToast } from '@/contexts/ToastContext'
+import { useToast } from '@/hooks/use-toast'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Template } from '@/types'
 import { Plus, Edit, Trash2, X, Save } from 'lucide-react'
 
 export default function TemplatesPage() {
-  const toast = useToast()
+  const { toast } = useToast()
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [templateToDelete, setTemplateToDelete] = useState<Template | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     subject: '',
@@ -41,7 +44,11 @@ export default function TemplatesPage() {
     e.preventDefault()
     
     if (!formData.name || !formData.subject || !formData.body) {
-      toast.warning('Missing fields', 'Please fill in all fields')
+      toast({
+        variant: "destructive",
+        title: "Missing fields",
+        description: "Please fill in all fields",
+      })
       return
     }
 
@@ -58,10 +65,17 @@ export default function TemplatesPage() {
 
       await fetchTemplates()
       resetForm()
-      toast.success(editingTemplate ? 'Template updated successfully!' : 'Template created successfully!')
+      toast({
+        title: editingTemplate ? "Template updated successfully!" : "Template created successfully!",
+        description: editingTemplate ? "Your changes have been saved." : "Your new template is ready to use.",
+      })
     } catch (error: any) {
       console.error('Error saving template:', error)
-      toast.error('Failed to save template', error.response?.data?.error)
+      toast({
+        variant: "destructive",
+        title: "Failed to save template",
+        description: error.response?.data?.error || "Please try again.",
+      })
     } finally {
       setSaving(false)
     }
@@ -77,18 +91,30 @@ export default function TemplatesPage() {
     setShowForm(true)
   }
 
-  const handleDelete = async (template: Template) => {
-    if (!window.confirm(`Are you sure you want to delete "${template.name}"?`)) {
-      return
-    }
+  const handleDeleteClick = (template: Template) => {
+    setTemplateToDelete(template)
+    setShowDeleteDialog(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!templateToDelete) return
 
     try {
-      await axios.delete(`/api/templates/${template.id}`)
+      await axios.delete(`/api/templates/${templateToDelete.id}`)
       await fetchTemplates()
-      toast.success('Template deleted successfully!')
+      toast({
+        title: "Template deleted successfully!",
+        description: "The template has been removed from your account.",
+      })
     } catch (error: any) {
       console.error('Error deleting template:', error)
-      toast.error('Failed to delete template', error.response?.data?.error)
+      toast({
+        variant: "destructive",
+        title: "Failed to delete template",
+        description: error.response?.data?.error || "Please try again.",
+      })
+    } finally {
+      setTemplateToDelete(null)
     }
   }
 
@@ -232,7 +258,7 @@ export default function TemplatesPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDelete(template)}
+                    onClick={() => handleDeleteClick(template)}
                     className="text-red-600 hover:text-red-700"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -256,6 +282,16 @@ export default function TemplatesPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Delete Template"
+        description={`Are you sure you want to delete "${templateToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        onConfirm={handleDeleteConfirm}
+        variant="destructive"
+      />
     </div>
   )
 }
