@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Plus, Home, Settings } from 'lucide-react'
+import { Plus, Home, Settings, List } from 'lucide-react'
 
 export default function Navigation() {
   const pathname = usePathname()
@@ -13,6 +13,11 @@ export default function Navigation() {
       href: '/',
       label: 'Dashboard',
       icon: Home
+    },
+    {
+      href: '/jobs',
+      label: 'Jobs',
+      icon: List
     },
     {
       href: '/add-job',
@@ -43,7 +48,9 @@ export default function Navigation() {
                     href={link.href}
                     className={cn(
                       'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium',
-                      (pathname === link.href || (link.href === '/settings' && pathname.startsWith('/settings')))
+                      (pathname === link.href || 
+                       (link.href === '/settings' && pathname.startsWith('/settings')) ||
+                       (link.href === '/jobs' && pathname.startsWith('/jobs')))
                         ? 'border-blue-500 text-gray-900'
                         : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                     )}
@@ -69,7 +76,9 @@ export default function Navigation() {
                 href={link.href}
                 className={cn(
                   'flex items-center pl-3 pr-4 py-2 border-l-4 text-base font-medium',
-                  (pathname === link.href || (link.href === '/settings' && pathname.startsWith('/settings')))
+                  (pathname === link.href || 
+                   (link.href === '/settings' && pathname.startsWith('/settings')) ||
+                   (link.href === '/jobs' && pathname.startsWith('/jobs')))
                     ? 'bg-blue-50 border-blue-500 text-blue-700'
                     : 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700'
                 )}

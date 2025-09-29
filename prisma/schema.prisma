@@ -44,11 +44,13 @@ model Job {
   jobTitle    String
   role        String
   contactEmail String
+  companyName String?
   notes       String?
   resumeName  String
   status      String @default("DRAFT")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  sentAt      DateTime?
   
   // Foreign keys
   templateId  String

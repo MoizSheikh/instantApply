@@ -6,10 +6,10 @@ const RESUMES_DIR = path.join(process.cwd(), 'public', 'resumes')
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
-    const { filename } = params
+    const { filename } = await params
     const decodedFilename = decodeURIComponent(filename)
 
     // Security check: ensure filename doesn't contain path traversal

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/Select'
-import { useToast } from '@/contexts/ToastContext'
+import { useToast } from '@/hooks/use-toast'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { RoleConfig, Template, Role } from '@/types'
 import { Plus, Edit, Trash2, X, Save, Users } from 'lucide-react'
 
@@ -21,17 +22,11 @@ const roleOptions: { value: Role; label: string }[] = [
   { value: 'Other', label: 'Other' }
 ]
 
-const resumeOptions = [
-  { value: 'resume-frontend.pdf', label: 'Frontend Resume' },
-  { value: 'resume-backend.pdf', label: 'Backend Resume' },
-  { value: 'resume-fullstack.pdf', label: 'Full Stack Resume' },
-  { value: 'resume-general.pdf', label: 'General Resume' }
-]
-
 export default function RolesPage() {
-  const toast = useToast()
+  const { toast } = useToast()
   const [roleConfigs, setRoleConfigs] = useState<RoleConfig[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
+  const [resumes, setResumes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingConfig, setEditingConfig] = useState<RoleConfig | null>(null)
@@ -41,6 +36,8 @@ export default function RolesPage() {
     resumeName: ''
   })
   const [saving, setSaving] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [configToDelete, setConfigToDelete] = useState<RoleConfig | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -48,12 +45,14 @@ export default function RolesPage() {
 
   const fetchData = async () => {
     try {
-      const [roleConfigsResponse, templatesResponse] = await Promise.all([
+      const [roleConfigsResponse, templatesResponse, resumesResponse] = await Promise.all([
         axios.get('/api/role-configs'),
-        axios.get('/api/templates')
+        axios.get('/api/templates'),
+        axios.get('/api/resumes')
       ])
       setRoleConfigs(roleConfigsResponse.data || [])
       setTemplates(templatesResponse.data || [])
+      setResumes(resumesResponse.data || [])
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -65,7 +64,11 @@ export default function RolesPage() {
     e.preventDefault()
     
     if (!formData.role || !formData.templateId || !formData.resumeName) {
-      toast.warning('Missing fields', 'Please fill in all fields')
+      toast({
+        variant: "destructive",
+        title: "Missing fields",
+        description: "Please fill in all fields",
+      })
       return
     }
 
@@ -82,10 +85,17 @@ export default function RolesPage() {
 
       await fetchData()
       resetForm()
-      toast.success(editingConfig ? 'Role configuration updated successfully!' : 'Role configuration created successfully!')
+      toast({
+        title: editingConfig ? "Role configuration updated successfully!" : "Role configuration created successfully!",
+        description: editingConfig ? "Your changes have been saved." : "Auto-selection is now enabled for this role.",
+      })
     } catch (error: any) {
       console.error('Error saving role config:', error)
-      toast.error('Failed to save role configuration', error.response?.data?.error)
+      toast({
+        variant: "destructive",
+        title: "Failed to save role configuration",
+        description: error.response?.data?.error || "Please try again.",
+      })
     } finally {
       setSaving(false)
     }
@@ -101,18 +111,30 @@ export default function RolesPage() {
     setShowForm(true)
   }
 
-  const handleDelete = async (config: RoleConfig) => {
-    if (!window.confirm(`Are you sure you want to delete the configuration for "${config.role}"?`)) {
-      return
-    }
+  const handleDelete = (config: RoleConfig) => {
+    setConfigToDelete(config)
+    setShowDeleteDialog(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!configToDelete) return
 
     try {
-      await axios.delete(`/api/role-configs/${config.id}`)
+      await axios.delete(`/api/role-configs/${configToDelete.id}`)
       await fetchData()
-      toast.success('Role configuration deleted successfully!')
+      toast({
+        title: "Role configuration deleted successfully!",
+        description: "Auto-selection has been disabled for this role.",
+      })
     } catch (error: any) {
       console.error('Error deleting role config:', error)
-      toast.error('Failed to delete role configuration', error.response?.data?.error)
+      toast({
+        variant: "destructive",
+        title: "Failed to delete role configuration",
+        description: error.response?.data?.error || "Please try again.",
+      })
+    } finally {
+      setConfigToDelete(null)
     }
   }
 
@@ -136,6 +158,11 @@ export default function RolesPage() {
   const templateOptions = templates.map(template => ({
     value: template.id,
     label: template.name
+  }))
+
+  const resumeOptions = resumes.map(resume => ({
+    value: resume.filename,
+    label: resume.displayName
   }))
 
   if (loading) {
@@ -312,6 +339,18 @@ export default function RolesPage() {
           <li>• Smart Extract feature also uses these configurations for auto-filling</li>
         </ul>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Delete Role Configuration"
+        description={`Are you sure you want to delete the configuration for "${configToDelete?.role}"? This action cannot be undone and auto-selection will be disabled for this role.`}
+        confirmText="Delete Configuration"
+        cancelText="Cancel"
+        onConfirm={confirmDelete}
+        variant="destructive"
+      />
     </div>
   )
 }
