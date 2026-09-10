@@ -76,10 +76,8 @@ export default function RolesPage() {
 
     try {
       if (editingConfig) {
-        // Update existing role config
         await axios.put(`/api/role-configs/${editingConfig.id}`, formData)
       } else {
-        // Create new role config
         await axios.post('/api/role-configs', formData)
       }
 

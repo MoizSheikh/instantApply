@@ -9,7 +9,6 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GMAIL_REDIRECT_URI
 )
 
-// Set refresh token
 oauth2Client.setCredentials({
   refresh_token: process.env.GMAIL_REFRESH_TOKEN
 })
@@ -29,9 +28,8 @@ export class GmailService {
         body
       ].join('\n')
 
-      // If there's an attachment, create multipart message
       if (attachmentPath && fs.existsSync(attachmentPath)) {
-        const boundary = 'boundary_' + Math.random().toString(36).substr(2, 9)
+        const boundary = 'boundary_' + Math.random().toString(36).slice(2, 11)
         const fileName = path.basename(attachmentPath)
         const fileContent = fs.readFileSync(attachmentPath).toString('base64')
 

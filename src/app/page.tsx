@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Job, JobStatus, Role, Template, RoleConfig } from "@/types";
 import { formatDate, interpolateTemplate } from "@/lib/utils";
+import { parseJobPost } from '@/lib/parse-job';
 import { useToast } from "@/hooks/use-toast";
 import { 
   Mail, Send, Clock, CheckCircle, XCircle, Plus, X, Sparkles,
@@ -61,6 +62,9 @@ interface DashboardStats {
   }>;
 }
 
+const labelForField = (field: string) =>
+  field === 'contactEmail' ? 'contact email' : field === 'jobTitle' ? 'job title' : 'company';
+
 export default function DashboardPage() {
   const { toast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -85,6 +89,7 @@ export default function DashboardPage() {
     jobTitle: '',
     role: '',
     contactEmail: '',
+    companyName: '',
     templateId: '',
     resumeName: ''
   });
@@ -111,7 +116,6 @@ export default function DashboardPage() {
       setJobs(response.data || []);
     } catch (error) {
       console.error("Error fetching jobs:", error);
-      // Don't set jobs on error - keep existing state or empty array
       if (jobs.length === 0) {
         setJobs([]);
       }
@@ -159,7 +163,6 @@ export default function DashboardPage() {
       const response = await axios.post("/api/send", { jobId });
 
       if (response.data.success) {
-        // Update the job in the local state
         setJobs((prev) =>
           prev.map((job) =>
             job.id === jobId ? { ...job, status: "SENT" as JobStatus } : job
@@ -169,10 +172,8 @@ export default function DashboardPage() {
           title: "Email sent successfully!",
           description: "Your job application has been sent.",
         });
-        // Refresh dashboard stats
         fetchDashboardStats();
       } else {
-        // Update to failed status
         setJobs((prev) =>
           prev.map((job) =>
             job.id === jobId ? { ...job, status: "FAILED" as JobStatus } : job
@@ -186,7 +187,6 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error("Error sending email:", error);
-      // Update to failed status on error
       setJobs((prev) =>
         prev.map((job) =>
           job.id === jobId ? { ...job, status: "FAILED" as JobStatus } : job
@@ -209,9 +209,7 @@ export default function DashboardPage() {
     try {
       const response = await axios.post("/api/send/bulk", { status: "PENDING" });
 
-      // Refresh jobs to get updated statuses
       await fetchJobs();
-      // Refresh dashboard stats
       fetchDashboardStats();
 
       toast({
@@ -238,7 +236,6 @@ export default function DashboardPage() {
   const handleQuickAddChange = (field: string, value: string) => {
     setQuickAddData(prev => ({ ...prev, [field]: value }));
 
-    // Auto-select template and resume when role changes
     if (field === 'role' && value) {
       const roleConfig = roleConfigs.find(config => config.role === value);
       if (roleConfig) {
@@ -267,17 +264,16 @@ export default function DashboardPage() {
     try {
       await axios.post('/api/jobs', quickAddData);
       
-      // Reset form and close modal
       setQuickAddData({
         jobTitle: '',
         role: '',
         contactEmail: '',
+        companyName: '',
         templateId: '',
         resumeName: ''
       });
       setShowQuickAdd(false);
       
-      // Refresh jobs list and stats
       await fetchJobs();
       fetchDashboardStats();
       
@@ -297,7 +293,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleJobExtraction = async () => {
+  const handleJobExtraction = () => {
     if (!jobDescriptionText.trim()) {
       toast({
         variant: "destructive",
@@ -307,53 +303,31 @@ export default function DashboardPage() {
       return;
     }
 
-    setExtractionLoading(true);
+    const parsed = parseJobPost(jobDescriptionText);
+    const roleConfig = roleConfigs.find(config => config.role === parsed.role);
 
-    try {
-      const response = await axios.post('https://abdulmoizsheikh-instantapply.hf.space/api/predict', {
-        data: [jobDescriptionText]
-      });
+    setQuickAddData({
+      jobTitle: parsed.jobTitle,
+      role: parsed.role,
+      contactEmail: parsed.contactEmail,
+      companyName: parsed.companyName,
+      templateId: roleConfig?.templateId || '',
+      resumeName: roleConfig?.resumeName || ''
+    });
 
-      const extractedData = response.data;
-      
-      // Map extracted data to our form structure
-      const mappedData = {
-        jobTitle: extractedData.job_title || '',
-        role: extractedData.role || '',
-        contactEmail: extractedData.contact_email || '',
-        templateId: '',
-        resumeName: ''
-      };
-
-      // Auto-select template and resume based on role
-      if (mappedData.role) {
-        const roleConfig = roleConfigs.find(config => config.role === mappedData.role);
-        if (roleConfig) {
-          mappedData.templateId = roleConfig.templateId;
-          mappedData.resumeName = roleConfig.resumeName;
-        }
-      }
-
-      // Update the quick add form data
-      setQuickAddData(mappedData);
-      
-      // Close extractor and open quick add modal
-      setShowJobExtractor(false);
-      setShowQuickAdd(true);
-      
-      // Clear the textarea
-      setJobDescriptionText('');
-      
-    } catch (error: any) {
-      console.error('Error extracting job data:', error);
+    if (parsed.missing.length > 0) {
       toast({
         variant: "destructive",
-        title: "Extraction failed",
-        description: "Failed to extract job information. Please try again or fill manually.",
+        title: `Could not read: ${parsed.missing.map(labelForField).join(', ')}`,
+        description: parsed.applyUrl
+          ? "This post only links an application form — no email to send to."
+          : "Fill the rest in by hand before sending.",
       });
-    } finally {
-      setExtractionLoading(false);
     }
+
+    setShowJobExtractor(false);
+    setShowQuickAdd(true);
+    setJobDescriptionText('');
   };
 
   const pendingCount = jobs?.filter((job) => job.status === "PENDING").length || 0;

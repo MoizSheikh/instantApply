@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
 
-    const whereClause = status ? { status: status as any } : {}
+    const whereClause = status ? { status } : {}
 
     const jobs = await prisma.job.findMany({
       where: whereClause,
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
         jobTitle: body.jobTitle,
         role: body.role,
         contactEmail: body.contactEmail,
+        companyName: body.companyName || null,
         notes: body.notes,
         resumeName: body.resumeName,
         templateId: body.templateId,

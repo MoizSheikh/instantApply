@@ -3,16 +3,15 @@ import { prisma } from '@/lib/prisma'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 })
     }
 
-    // Check if job exists
     const job = await prisma.job.findUnique({
       where: { id }
     })
@@ -21,7 +20,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
     }
 
-    // Delete the job
     await prisma.job.delete({
       where: { id }
     })
@@ -36,17 +34,16 @@ export async function DELETE(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const data = await request.json()
 
     if (!id) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 })
     }
 
-    // Check if job exists
     const existingJob = await prisma.job.findUnique({
       where: { id }
     })
@@ -55,7 +52,6 @@ export async function PUT(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
     }
 
-    // Update the job
     const updatedJob = await prisma.job.update({
       where: { id },
       data: {

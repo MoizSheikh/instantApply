@@ -52,7 +52,7 @@ export default function ResumesPage() {
         })
         return
       }
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      if (file.size > 10 * 1024 * 1024) {
         toast({
           variant: "destructive",
           title: "File too large",
@@ -61,7 +61,6 @@ export default function ResumesPage() {
         return
       }
       setSelectedFile(file)
-      // Auto-fill display name from filename
       const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '')
       setDisplayName(nameWithoutExt)
     }
@@ -161,7 +160,6 @@ export default function ResumesPage() {
     setSelectedFile(null)
     setDisplayName('')
     setShowUploadForm(false)
-    // Reset file input
     const fileInput = document.getElementById('resume-file') as HTMLInputElement
     if (fileInput) fileInput.value = ''
   }

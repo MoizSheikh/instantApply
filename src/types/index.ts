@@ -17,10 +17,12 @@ export interface Job {
   jobTitle: string
   role: string
   contactEmail: string
+  companyName?: string | null
   notes: string | null
   resumeName: string
   status: JobStatus
   templateId: string
+  sentAt?: Date | null
   createdAt: Date
   updatedAt: Date
   template?: Template
@@ -49,6 +51,7 @@ export interface CreateJobData {
   jobTitle: string
   role: string
   contactEmail: string
+  companyName?: string
   notes?: string
   resumeName: string
   templateId: string
@@ -58,6 +61,7 @@ export interface UpdateJobData {
   jobTitle?: string
   role?: string
   contactEmail?: string
+  companyName?: string
   notes?: string
   resumeName?: string
   templateId?: string

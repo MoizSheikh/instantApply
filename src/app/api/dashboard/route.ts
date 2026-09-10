@@ -3,10 +3,8 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    // Get total jobs count
     const totalJobs = await prisma.job.count()
 
-    // Get jobs by status
     const jobsByStatus = await prisma.job.groupBy({
       by: ['status'],
       _count: {
@@ -14,7 +12,6 @@ export async function GET() {
       }
     })
 
-    // Get recent applications (last 30 days)
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
@@ -26,7 +23,6 @@ export async function GET() {
       }
     })
 
-    // Get applications by company (top 10)
     const applicationsByCompany = await prisma.job.groupBy({
       by: ['companyName'],
       where: {
@@ -46,7 +42,6 @@ export async function GET() {
       take: 10
     })
 
-    // Get applications over time (last 7 days)
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
@@ -61,7 +56,6 @@ export async function GET() {
       }
     })
 
-    // Group by day
     const applicationsByDay = dailyApplications.reduce((acc, job) => {
       if (!job.sentAt) return acc
       const date = job.sentAt.toISOString().split('T')[0]
@@ -69,7 +63,6 @@ export async function GET() {
       return acc
     }, {} as Record<string, number>)
 
-    // Fill in missing days with 0
     const last7Days = []
     for (let i = 6; i >= 0; i--) {
       const date = new Date()
@@ -81,7 +74,6 @@ export async function GET() {
       })
     }
 
-    // Transform status data
     const statusStats = jobsByStatus.reduce((acc, item) => {
       acc[item.status.toLowerCase()] = item._count.id
       return acc

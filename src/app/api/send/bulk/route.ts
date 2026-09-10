@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { GmailService } from '@/lib/gmail'
-import { interpolateTemplate, extractCompanyFromEmail } from '@/lib/utils'
-import * as path from 'path'
+import { deliverJob, markFailed } from '@/lib/send-job'
+
+const THROTTLE_MS = 1000
 
 export async function POST(request: NextRequest) {
   try {
     const { status = 'PENDING' } = await request.json()
 
-    // Fetch all jobs with the specified status
     const jobs = await prisma.job.findMany({
-      where: { status: status as any },
-      include: {
-        template: true
-      }
+      where: { status },
+      include: { template: true }
     })
 
     if (jobs.length === 0) {
@@ -22,34 +19,9 @@ export async function POST(request: NextRequest) {
 
     const results = []
 
-    for (const job of jobs) {
+    for (const [i, job] of jobs.entries()) {
       try {
-        // Interpolate template
-        const { subject, body } = interpolateTemplate(job.template, job as any)
-
-        // Prepare email data
-        const resumePath = path.join(process.cwd(), 'public', 'resumes', job.resumeName)
-        
-        const emailData = {
-          to: job.contactEmail,
-          subject,
-          body,
-          attachmentPath: resumePath
-        }
-
-        // Send email
-        const success = await GmailService.sendEmail(emailData)
-
-        // Update job status
-        await prisma.job.update({
-          where: { id: job.id },
-          data: { 
-            status: success ? 'SENT' : 'FAILED',
-            companyName: extractCompanyFromEmail(job.contactEmail),
-            sentAt: success ? new Date() : null
-          }
-        })
-
+        const success = await deliverJob(job)
         results.push({
           jobId: job.id,
           jobTitle: job.jobTitle,
@@ -57,24 +29,9 @@ export async function POST(request: NextRequest) {
           success,
           error: success ? null : 'Failed to send email'
         })
-
-        // Small delay between emails to avoid rate limiting
-        if (jobs.length > 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        }
-
       } catch (error) {
         console.error(`Error sending email for job ${job.id}:`, error)
-        
-        // Update job status to failed
-        await prisma.job.update({
-          where: { id: job.id },
-          data: { 
-            status: 'FAILED',
-            companyName: extractCompanyFromEmail(job.contactEmail)
-          }
-        }).catch(() => {})
-
+        await markFailed(job.id)
         results.push({
           jobId: job.id,
           jobTitle: job.jobTitle,
@@ -83,21 +40,19 @@ export async function POST(request: NextRequest) {
           error: error instanceof Error ? error.message : 'Unknown error'
         })
       }
+
+      if (i < jobs.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, THROTTLE_MS))
+      }
     }
 
-    const successCount = results.filter(r => r.success).length
-    const failureCount = results.length - successCount
+    const sent = results.filter(r => r.success).length
 
     return NextResponse.json({
-      message: `Processed ${results.length} jobs: ${successCount} sent, ${failureCount} failed`,
+      message: `Processed ${results.length} jobs: ${sent} sent, ${results.length - sent} failed`,
       results,
-      summary: {
-        total: results.length,
-        sent: successCount,
-        failed: failureCount
-      }
+      summary: { total: results.length, sent, failed: results.length - sent }
     })
-
   } catch (error) {
     console.error('Error in bulk send:', error)
     return NextResponse.json({ error: 'Failed to process bulk send' }, { status: 500 })

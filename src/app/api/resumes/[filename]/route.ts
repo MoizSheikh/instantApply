@@ -12,21 +12,18 @@ export async function DELETE(
     const { filename } = await params
     const decodedFilename = decodeURIComponent(filename)
 
-    // Security check: ensure filename doesn't contain path traversal
-    if (decodedFilename.includes('..') || decodedFilename.includes('/')) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._ -]*\.pdf$/.test(decodedFilename)) {
       return NextResponse.json({ error: 'Invalid filename' }, { status: 400 })
     }
 
     const filePath = path.join(RESUMES_DIR, decodedFilename)
 
-    // Check if file exists
     try {
       await fs.access(filePath)
     } catch {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    // Delete the file
     await fs.unlink(filePath)
 
     return NextResponse.json({ success: true })

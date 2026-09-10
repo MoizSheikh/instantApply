@@ -1,10 +1,21 @@
-import { Job, Template } from '@/types'
+interface TemplateFields {
+  subject: string
+  body: string
+}
 
-export function interpolateTemplate(template: Template, job: Job): { subject: string; body: string } {
+interface JobFields {
+  jobTitle: string
+  role: string
+  contactEmail: string
+  companyName?: string | null
+  notes?: string | null
+}
+
+export function interpolateTemplate(template: TemplateFields, job: JobFields): { subject: string; body: string } {
   const variables = {
     jobTitle: job.jobTitle,
     role: job.role,
-    company: extractCompanyFromEmail(job.contactEmail),
+    company: job.companyName || extractCompanyFromEmail(job.contactEmail),
     contactEmail: job.contactEmail,
     notes: job.notes || ''
   }
@@ -25,13 +36,11 @@ function extractCompanyFromEmail(email: string): string {
   const domain = email.split('@')[1]
   if (!domain) return 'Company'
   
-  // Remove common email providers and extract company name
   const commonProviders = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com']
   if (commonProviders.includes(domain.toLowerCase())) {
     return 'Company'
   }
   
-  // Extract company name from domain (e.g., jobs@company.com -> Company)
   const companyName = domain.split('.')[0]
   return companyName.charAt(0).toUpperCase() + companyName.slice(1)
 }

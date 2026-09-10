@@ -56,10 +56,8 @@ export default function TemplatesPage() {
 
     try {
       if (editingTemplate) {
-        // Update existing template
         await axios.put(`/api/templates/${editingTemplate.id}`, formData)
       } else {
-        // Create new template
         await axios.post('/api/templates', formData)
       }
 

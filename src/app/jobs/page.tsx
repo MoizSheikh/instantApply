@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Job, JobStatus, Role, Template, RoleConfig } from "@/types";
 import { formatDate, interpolateTemplate } from "@/lib/utils";
+import { parseJobPost } from '@/lib/parse-job';
 import { useToast } from "@/hooks/use-toast";
 import { 
   Mail, Send, Clock, CheckCircle, XCircle, Plus, X, Sparkles, Trash2, Edit
@@ -41,6 +42,9 @@ const roleOptions: { value: Role; label: string }[] = [
   { value: 'Other', label: 'Other' }
 ]
 
+const labelForField = (field: string) =>
+  field === 'contactEmail' ? 'contact email' : field === 'jobTitle' ? 'job title' : 'company';
+
 export default function JobsPage() {
   const { toast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -66,6 +70,7 @@ export default function JobsPage() {
     jobTitle: '',
     role: '',
     contactEmail: '',
+    companyName: '',
     templateId: '',
     resumeName: ''
   });
@@ -228,6 +233,7 @@ export default function JobsPage() {
         jobTitle: '',
         role: '',
         contactEmail: '',
+        companyName: '',
         templateId: '',
         resumeName: ''
       });
@@ -264,7 +270,6 @@ export default function JobsPage() {
     try {
       await axios.delete(`/api/jobs/${jobToDelete.id}`);
       
-      // Remove job from local state
       setJobs(prev => prev.filter(job => job.id !== jobToDelete.id));
       
       toast({
@@ -285,7 +290,7 @@ export default function JobsPage() {
     }
   };
 
-  const handleJobExtraction = async () => {
+  const handleJobExtraction = () => {
     if (!jobDescriptionText.trim()) {
       toast({
         variant: "destructive",
@@ -295,46 +300,31 @@ export default function JobsPage() {
       return;
     }
 
-    setExtractionLoading(true);
+    const parsed = parseJobPost(jobDescriptionText);
+    const roleConfig = roleConfigs.find(config => config.role === parsed.role);
 
-    try {
-      const response = await axios.post('https://abdulmoizsheikh-instantapply.hf.space/api/predict', {
-        data: [jobDescriptionText]
-      });
+    setQuickAddData({
+      jobTitle: parsed.jobTitle,
+      role: parsed.role,
+      contactEmail: parsed.contactEmail,
+      companyName: parsed.companyName,
+      templateId: roleConfig?.templateId || '',
+      resumeName: roleConfig?.resumeName || ''
+    });
 
-      const extractedData = response.data;
-      
-      const mappedData = {
-        jobTitle: extractedData.job_title || '',
-        role: extractedData.role || '',
-        contactEmail: extractedData.contact_email || '',
-        templateId: '',
-        resumeName: ''
-      };
-
-      if (mappedData.role) {
-        const roleConfig = roleConfigs.find(config => config.role === mappedData.role);
-        if (roleConfig) {
-          mappedData.templateId = roleConfig.templateId;
-          mappedData.resumeName = roleConfig.resumeName;
-        }
-      }
-
-      setQuickAddData(mappedData);
-      setShowJobExtractor(false);
-      setShowQuickAdd(true);
-      setJobDescriptionText('');
-      
-    } catch (error: any) {
-      console.error('Error extracting job data:', error);
+    if (parsed.missing.length > 0) {
       toast({
         variant: "destructive",
-        title: "Extraction failed",
-        description: "Failed to extract job information. Please try again or fill manually.",
+        title: `Could not read: ${parsed.missing.map(labelForField).join(', ')}`,
+        description: parsed.applyUrl
+          ? "This post only links an application form — no email to send to."
+          : "Fill the rest in by hand before sending.",
       });
-    } finally {
-      setExtractionLoading(false);
     }
+
+    setShowJobExtractor(false);
+    setShowQuickAdd(true);
+    setJobDescriptionText('');
   };
 
   const pendingCount = jobs?.filter((job) => job.status === "PENDING").length || 0;

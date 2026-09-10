@@ -1,172 +1,93 @@
-# InstantApply - Personal Job Application Sender
+# InstantApply
 
-A Next.js 14 application for managing and automating job application emails with Gmail integration.
+Paste a job post, get a tailored application email out the door. Built for one person applying to a lot of remote roles.
 
-## Features
+## What it does
 
-- 📝 Store job applications with details (title, role, contact email, notes, resume)
-- 📧 Multiple email templates with string interpolation
-- 🚀 Send individual or bulk emails via Gmail API
-- 📊 Dashboard with filtering and status tracking
-- 📱 Mobile-friendly interface
-- 🗄️ PostgreSQL database with Prisma ORM
+- Paste a job post (LinkedIn, email, anywhere) and it pulls out the contact email, job title, company and role
+- Picks the matching resume and email template automatically from your role config
+- Tells you loudly when a post has no email in it, instead of leaving a blank field
+- Recognises application-form links (Greenhouse, Lever, Ashby, Workable, Workday and friends) so you know that one has to be done in the browser
+- Sends through your own Gmail with the resume attached, one at a time or in bulk
+- Dashboard with status per application: draft, pending, sent, failed
 
-## Tech Stack
+Parsing runs locally — no API key, no model call, no network.
 
-- **Frontend**: Next.js 14 (App Router), TypeScript, TailwindCSS
-- **Backend**: Next.js API Routes
-- **Database**: PostgreSQL with Prisma ORM
-- **Email**: Gmail API with OAuth2
-- **Icons**: Lucide React
+## Stack
 
-## Setup Instructions
+Next.js 15 (App Router) · TypeScript · TailwindCSS · Prisma + SQLite · Gmail API
 
-### 1. Database Setup
+## Setup
 
-Choose one of these free PostgreSQL hosting options:
-- [Supabase](https://supabase.com/) - Free tier: 500MB, 2 projects
-- [Neon](https://neon.tech/) - Free tier: 3GB, 1 project
-- [Railway](https://railway.app/) - Free tier with usage limits
+### 1. Install
 
-Create a database and get the connection URL.
+```bash
+npm install
+```
 
-### 2. Gmail API Setup
+### 2. Gmail API credentials
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing one
-3. Enable the Gmail API
-4. Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client IDs"
-5. Configure consent screen if needed
-6. Set application type to "Web application"
-7. Add authorized redirect URIs:
-   - `http://localhost:3000/api/auth/gmail/callback` (development)
-   - Your production URL + `/api/auth/gmail/callback` (production)
-8. Save the Client ID and Client Secret
+1. [Google Cloud Console](https://console.cloud.google.com/) → new project → enable the Gmail API
+2. Credentials → Create Credentials → OAuth 2.0 Client ID → Web application
+3. Add redirect URI `http://localhost:3000/api/auth/gmail/callback`
+4. Keep the Client ID and Client Secret
 
-### 3. Environment Variables
+### 3. Environment
 
-Create a `.env.local` file in the root directory:
+Create `.env.local`:
 
-\`\`\`env
-# Database
-DATABASE_URL="your-postgresql-connection-string"
-
-# Gmail API OAuth2
-GMAIL_CLIENT_ID="your-gmail-client-id"
-GMAIL_CLIENT_SECRET="your-gmail-client-secret"
+```env
+GMAIL_CLIENT_ID="your-client-id"
+GMAIL_CLIENT_SECRET="your-client-secret"
 GMAIL_REDIRECT_URI="http://localhost:3000/api/auth/gmail/callback"
-GMAIL_REFRESH_TOKEN="your-refresh-token"
-
-# Next.js
+GMAIL_REFRESH_TOKEN="filled in at step 5"
 NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-random-secret-key"
-\`\`\`
+NEXTAUTH_SECRET="any-random-string"
+```
 
-### 4. Get Gmail Refresh Token
+The database is a local SQLite file at `prisma/dev.db`, configured in `prisma/schema.prisma` — no `DATABASE_URL` needed.
 
-1. Start the development server: \`npm run dev\`
-2. Visit: \`http://localhost:3000/api/auth/gmail\`
-3. Follow the OAuth flow to authorize your Gmail account
-4. Copy the \`refresh_token\` from the response
-5. Add it to your \`.env.local\` file as \`GMAIL_REFRESH_TOKEN\`
+### 4. Database
 
-### 5. Database Migration & Seeding
-
-\`\`\`bash
-# Generate Prisma client
-npm run db:generate
-
-# Push database schema
+```bash
 npm run db:push
-
-# Seed with default templates
 npm run db:seed
-\`\`\`
+```
 
-### 6. Add Your Resumes
+### 5. Gmail refresh token
 
-Place your resume PDF files in \`public/resumes/\` directory:
-- \`resume-frontend.pdf\`
-- \`resume-backend.pdf\`
-- \`resume-fullstack.pdf\`
-- \`resume-general.pdf\`
-
-Or update the resume options in \`src/app/add-job/page.tsx\` to match your files.
-
-### 7. Start Development
-
-\`\`\`bash
+```bash
 npm run dev
-\`\`\`
+```
 
-Visit \`http://localhost:3000\` to start using the application!
+Visit `http://localhost:3000/api/auth/gmail`, approve the consent screen, copy the `refresh_token` out of the response into `.env.local`, restart.
+
+### 6. Resumes
+
+Upload your PDFs at `http://localhost:3000/settings/resumes`, or drop them straight into `public/resumes/`. The dropdowns read that folder, so any filename works.
 
 ## Usage
 
-### Adding Jobs
-1. Click "Add Job" in the navigation
-2. Fill in job details (title, role, contact email, notes)
-3. Select a resume and email template
-4. Save as draft
+Dashboard → **Extract from job description** → paste the post → review the prefilled fields → send. Or use `/add-job` for the full form with the same paste box at the top.
 
-### Managing Jobs
-1. View all jobs in the Dashboard
-2. Filter by status (Draft, Pending, Sent, Failed)
-3. Preview generated emails before sending
-4. Send individual jobs or bulk send all pending
+Set up one resume + template pair per role under `/settings/roles` and the right pair gets picked for you every time.
 
-### Email Templates
+## Template variables
 
-The application comes with 4 default templates:
-- **Professional Standard**: Formal business tone
-- **Casual & Friendly**: Relaxed, personable approach
-- **Technical Focus**: Emphasizes technical skills
-- **Startup Focused**: Energetic, impact-oriented
+| Variable | Value |
+|---|---|
+| `{{jobTitle}}` | Job title from the post |
+| `{{role}}` | Role category it mapped to |
+| `{{company}}` | Company name, falling back to the email domain |
+| `{{contactEmail}}` | Where it's being sent |
+| `{{notes}}` | Your notes, which include the pasted post |
 
-Templates support variable interpolation:
-- \`{{jobTitle}}\` - Job title
-- \`{{role}}\` - Your role/position
-- \`{{company}}\` - Company name (extracted from email domain)
-- \`{{contactEmail}}\` - Contact email address
-- \`{{notes}}\` - Your custom notes
+## Notes
 
-## Deployment
-
-### Vercel (Recommended)
-1. Push code to GitHub
-2. Connect repository to Vercel
-3. Add environment variables in Vercel dashboard
-4. Deploy
-
-### Other Platforms
-- Railway
-- Netlify (with serverless functions)
-- DigitalOcean App Platform
-
-## Database Schema
-
-### Jobs Table
-- \`id\` - Unique identifier
-- \`jobTitle\` - Position title
-- \`role\` - Your role category
-- \`contactEmail\` - Hiring manager email
-- \`notes\` - Additional notes
-- \`resumeName\` - Resume file name
-- \`status\` - DRAFT | PENDING | SENT | FAILED
-- \`templateId\` - Foreign key to template
-- \`createdAt\` / \`updatedAt\` - Timestamps
-
-### Templates Table
-- \`id\` - Unique identifier
-- \`name\` - Template name
-- \`subject\` - Email subject template
-- \`body\` - Email body template
-- \`createdAt\` / \`updatedAt\` - Timestamps
-
-## Contributing
-
-Feel free to submit issues and enhancement requests!
+- `prisma/dev.db` holds your applications and the contact emails you've written to. Keep it out of git.
+- Bulk send waits a second between emails. Gmail will rate-limit you if you push it.
+- Deploying to Vercel means moving off SQLite — the filesystem is read-only there, so switch the Prisma datasource to Postgres and use blob storage for resumes.
 
 ## License
 
-MIT License - feel free to use this for your job search! 🚀
+MIT

@@ -43,3 +43,7 @@ next-env.d.ts
 # resumes (add your actual resume files to public/resumes/)
 /public/resumes/*.pdf
 !/public/resumes/.gitkeep
+
+# local database
+/prisma/*.db
+/prisma/*.db-journal

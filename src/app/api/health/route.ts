@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    // Test database connection with a simple query
     await prisma.template.findFirst()
     
     return NextResponse.json({ 

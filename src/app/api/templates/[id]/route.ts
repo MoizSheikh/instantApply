@@ -32,7 +32,6 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    // Check if template is being used by any jobs
     const jobsUsingTemplate = await prisma.job.findMany({
       where: { templateId: id }
     })
